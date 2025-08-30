@@ -138,7 +138,7 @@ def simple_otp_monitor(config):
                         f"<blockquote>🌍 <b>Country:</b> <b>{otp_entry.get('country_name')}</b></blockquote>\n"
                         f"<blockquote>🔐 <b>OTP:</b>{html.escape(otp_code)}</blockquote>\n"
                         "┣━━━━━┫\n"
-                        " <blockquote>⚡️ <i>Powered by @DDxOTPBOT Bot System 🤖</i></blockquote>\n"
+                        " <blockquote>⚡️ <i>Powered by @DDxOTPsBOT Bot System 🤖</i></blockquote>\n"
                         "┗━━━━━━━━━━━┛"
                     )
                     
@@ -176,16 +176,15 @@ def simple_otp_monitor(config):
 def create_bot_file(bot_id, config):
     """Create a separate Python file for each cloned bot"""
     bot_filename = f"clone_bot_{bot_id}.py"
-    
+
     # Ensure channel link is properly formatted
     channel_link = config.get("channel_link", DEFAULT_CHANNEL_LINK)
     if channel_link.startswith("@"):
         channel_link = f"https://t.me/{channel_link[1:]}"
-    
+
     bot_code = f'''
 import logging
 import requests
-import time
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
 
@@ -196,23 +195,11 @@ BOT_TOKEN = "{config["bot_token"]}"
 CHAT_ID = {config["chat_id"]}
 GROUP_LINK = "{config["group_link"]}"
 CHANNEL_LINK = "{channel_link}"
-FORCE_SUB_CHANNEL = "{FORCE_SUB_CHANNEL}"
 AUTH_TOKEN = "{AUTH_TOKEN}"
 BASE_URL = "{BASE_URL}"
 
-def check_subscription(user_id):
-    try:
-        url = f"https://api.telegram.org/bot{{BOT_TOKEN}}/getChatMember"
-        params = {{"chat_id": FORCE_SUB_CHANNEL, "user_id": user_id}}
-        response = requests.get(url, params=params)
-        data = response.json()
-        if data.get("ok"):
-            status = data["result"]["status"]
-            return status in ["member", "administrator", "creator"]
-        return False
-    except Exception as e:
-        logger.error(f"Error checking subscription: {{e}}")
-        return True
+# Memory store for user selections
+user_last_selection = {{}}
 
 def get_countries():
     headers = {{"Auth-Token": AUTH_TOKEN}}
@@ -239,10 +226,10 @@ def add_number(app_id, carrier_id):
     }}
     return requests.post(f"{{BASE_URL}}/", headers=headers, files={{}}, data=data).json()
 
-def paginate_countries(page=0, countries_per_page=10):
+def paginate_countries(page=0, per_page=10):
     countries = get_countries()
-    start = page * countries_per_page
-    end = start + countries_per_page
+    start = page * per_page
+    end = start + per_page
     buttons = [[InlineKeyboardButton(c["text"], callback_data=f"country|{{c['id']}}")] for c in countries[start:end]]
     nav_buttons = []
     if page > 0:
@@ -254,11 +241,6 @@ def paginate_countries(page=0, countries_per_page=10):
     return buttons
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not check_subscription(user_id):
-        keyboard = [[InlineKeyboardButton("🔔 Join Channel", url=f"https://t.me/{{FORCE_SUB_CHANNEL.replace('@', '')}}")]]
-        await update.message.reply_text("❌ You must join our channel first!", reply_markup=InlineKeyboardMarkup(keyboard))
-        return
     keyboard = paginate_countries(0)
     await update.message.reply_text("🌍 Select a country:", reply_markup=InlineKeyboardMarkup(keyboard))
 
@@ -266,37 +248,64 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     action, *values = query.data.split("|")
-    
+
     if action == "more_countries":
         page = int(values[0])
         keyboard = paginate_countries(page)
         await query.edit_message_text("🌍 Select a country:", reply_markup=InlineKeyboardMarkup(keyboard))
+
     elif action == "country":
         country_id = values[0]
         carriers = get_carriers(country_id)
         if not carriers:
             res = add_number(country_id, "")
             if res.get("meta") == 200 and res.get("data"):
-                await send_number_message(query, res["data"])
+                data = res["data"]
+                user_last_selection[query.from_user.id] = (country_id, "")
+                await send_number_message(query, data, country_id, "")
             else:
                 await query.edit_message_text("❌ Numbers currently not available.")
             return
         keyboard = [[InlineKeyboardButton(c["text"], callback_data=f"carrier|{{country_id}}|{{c['id']}}")] for c in carriers]
         await query.edit_message_text("🚚 Select a carrier:", reply_markup=InlineKeyboardMarkup(keyboard))
+
     elif action == "carrier":
         country_id, carrier_id = values
         res = add_number(country_id, carrier_id)
         if res.get("meta") == 200 and res.get("data"):
-            await send_number_message(query, res["data"])
+            data = res["data"]
+            user_last_selection[query.from_user.id] = (country_id, carrier_id)
+            await send_number_message(query, data, country_id, carrier_id)
         else:
             await query.edit_message_text("❌ Numbers currently not available.")
 
-async def send_number_message(query, data):
-    msg = f"✅ <b>Number Added Successfully!</b>\\n\\n📞 <b>Number:</b> <code>{{data.get('did')}}</code>\\n<i>Powered by @DDxOTP Bot System ❤️</i>"
-    keyboard = [[
-        InlineKeyboardButton("📩 View OTP", url=GROUP_LINK),
-        InlineKeyboardButton("🔔 Channel", url=CHANNEL_LINK)
-    ]]
+    elif action == "change_number":
+        if query.from_user.id not in user_last_selection:
+            await query.edit_message_text("❌ First get a number.")
+            return
+        country_id, carrier_id = user_last_selection[query.from_user.id]
+        res = add_number(country_id, carrier_id)
+        if res.get("meta") == 200 and res.get("data"):
+            data = res["data"]
+            await send_number_message(query, data, country_id, carrier_id, changed=True)
+        else:
+            await query.edit_message_text("❌ Numbers currently not available.")
+
+async def send_number_message(query, data, country_id, carrier_id, changed=False):
+    msg = (
+        ("🔄 <b>Number Changed!</b>\\n\\n" if changed else "✅ <b>Number Added Successfully!</b>\\n\\n") +
+        f"📞 <b>Number:</b> <code>{{data.get('did')}}</code>\\n"
+        f"<i>Powered by @DDxOTPsBOT ❤️</i>"
+    )
+    keyboard = [
+        [
+            InlineKeyboardButton("📩 View OTP", url=GROUP_LINK),
+            InlineKeyboardButton("📢 Channel", url=CHANNEL_LINK)
+        ],
+        [
+            InlineKeyboardButton("🔄 Change Number", callback_data="change_number")
+        ]
+    ]
     await query.edit_message_text(msg, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(keyboard))
 
 if __name__ == "__main__":
@@ -306,11 +315,12 @@ if __name__ == "__main__":
     logger.info("Bot @{config["bot_username"]} started!")
     application.run_polling()
 '''
-    
+
     with open(bot_filename, 'w') as f:
         f.write(bot_code)
-    
+
     return bot_filename
+    
 
 # Delete bot function
 def delete_bot(bot_id):
@@ -730,20 +740,27 @@ async def main_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             save_pending_requests(pending_requests)
             
             try:
-                await context.bot.send_message(
-                    OWNER_ID,
-                    f"🔔 <b>New Bot Request!</b>\n\n"
-                    f"👤 User: @{state['username']} ({user_id})\n"
-                    f"🤖 Bot: @{state['bot_username']}\n"
-                    f"📱 Chat: {state['chat_id']}\n"
-                    f"🔗 Group: {state['group_link']}\n"
-                    f"📢 Channel: {state['channel_link']}\n\n"
-                    f"⏳ Please review in /start",
-                    parse_mode="HTML"
-                )
+               buttons = [
+                 [
+                InlineKeyboardButton("✅ Approve", callback_data=f"approve_{req_id}"),
+                InlineKeyboardButton("❌ Reject", callback_data=f"reject_{req_id}")
+                   ]
+                  ]
+               await context.bot.send_message(
+        OWNER_ID,
+        f"🔔 <b>New Bot Request!</b>\n\n"
+        f"👤 User: @{state['username']} ({user_id})\n"
+        f"🤖 Bot: @{state['bot_username']}\n"
+        f"📱 Chat: {state['chat_id']}\n"
+        f"🔗 Group: {state['group_link']}\n"
+        f"📢 Channel: {state['channel_link']}\n\n"
+        f"⏳ Please review below:",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
             except Exception as e:
-                logger.error(f"Error notifying owner: {e}")
-            
+              logger.error(f"Error notifying owner: {e}")
+       
             await update.message.reply_text(
                 f"📋 <b>Bot Request Submitted!</b>\n\n"
                 f"🤖 @{state['bot_username']}\n"
