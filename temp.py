@@ -203,9 +203,9 @@ FORCE_SUB_CHANNEL = "@DDxOTP"
 user_last_selection = {{}}
 
 
-def check_subscription(user_id):
+def check_subscription(user_id, bot_token=BOT_TOKEN):
     try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getChatMember"
+        url = f"https://api.telegram.org/bot{bot_token}/getChatMember"
         params = {"chat_id": FORCE_SUB_CHANNEL, "user_id": user_id}
         response = requests.get(url, params=params)
         data = response.json()
@@ -258,10 +258,11 @@ def paginate_countries(page=0, per_page=10):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if not check_subscription(user_id):
-        keyboard = [[InlineKeyboardButton("🔔 Join Channel", url=f"https://t.me/{FORCE_SUB_CHANNEL.replace('@', '')}")]]
-        await update.message.reply_text("❌ You must join our channel first!", reply_markup=InlineKeyboardMarkup(keyboard))
-        return
+    if not check_subscription(user_id, BOT_TOKEN):
+      keyboard = [[InlineKeyboardButton("🔔 Join Channel", url=f"https://t.me/{FORCE_SUB_CHANNEL.replace('@', '')}")]]
+      await update.message.reply_text("❌ You must join our channel first!", reply_markup=InlineKeyboardMarkup(keyboard))
+      return
+
 
     # agar subscribed hai to normal flow
     keyboard = paginate_countries(0)
