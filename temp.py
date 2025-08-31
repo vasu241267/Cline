@@ -267,10 +267,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
-    # agar subscribed hai to normal flow
-    keyboard = paginate_countries(0)
-    await update.message.reply_text("🌍 Select a country:", reply_markup=InlineKeyboardMarkup(keyboard))
-
+    
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
