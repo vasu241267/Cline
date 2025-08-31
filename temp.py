@@ -202,7 +202,31 @@ FORCE_SUB_CHANNEL = "@DDxOTP"
 # Memory store for user selections
 user_last_selection = {{}}
 
+async def search_country(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("🔍 Usage: /search <country name>\n\nExample: /search afg")
+        return
 
+    query = " ".join(context.args).lower()
+    countries = get_countries()
+    match = next((c for c in countries if query in c["text"].lower()), None)
+
+    if not match:
+        await update.message.reply_text("❌ No country found, try again.")
+        return
+
+    carriers = get_carriers(match["id"])
+    if carriers:
+        keyboard = [[InlineKeyboardButton(c["text"], callback_data=f"carrier|{match['id']}|{c['id']}")] for c in carriers]
+        await update.message.reply_text(f"✅ Found country: {match['text']}\nSelect carrier:", reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        res = add_number(match["id"], "")
+        if res.get("meta") == 200 and res.get("data"):
+            data = res["data"]
+            await update.message.reply_text(f"✅ Number assigned directly: <code>{data.get('did')}</code>", parse_mode="HTML")
+        else:
+            await update.message.reply_text("❌ Numbers not available right now.")
+            
 
 def get_countries():
     headers = {{"Auth-Token": AUTH_TOKEN}}
@@ -336,6 +360,8 @@ if __name__ == "__main__":
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button))
+    application.add_handler(CommandHandler("search", search_country))
+    
     logger.info("Bot @{config["bot_username"]} started!")
     application.run_polling()
 '''
