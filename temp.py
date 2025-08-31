@@ -203,19 +203,6 @@ FORCE_SUB_CHANNEL = "@DDxOTP"
 user_last_selection = {{}}
 
 
-def check_subscription(user_id, bot_token=BOT_TOKEN):
-    try:
-        url = f"https://api.telegram.org/bot{bot_token}/getChatMember"
-        params = {"chat_id": FORCE_SUB_CHANNEL, "user_id": user_id}
-        response = requests.get(url, params=params)
-        data = response.json()
-        if data.get("ok"):
-            status = data["result"]["status"]
-            return status in ["member", "administrator", "creator"]
-        return False
-    except Exception as e:
-        logger.error(f"Error checking subscription: {e}")
-        return True  # fallback: allow if error
 
 def get_countries():
     headers = {{"Auth-Token": AUTH_TOKEN}}
@@ -258,10 +245,25 @@ def paginate_countries(page=0, per_page=10):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    if not check_subscription(user_id, BOT_TOKEN):
-      keyboard = [[InlineKeyboardButton("🔔 Join Channel", url=f"https://t.me/{FORCE_SUB_CHANNEL.replace('@', '')}")]]
-      await update.message.reply_text("❌ You must join our channel first!", reply_markup=InlineKeyboardMarkup(keyboard))
-      return
+
+    try:
+        member = await context.bot.get_chat_member(FORCE_SUB_CHANNEL, user_id)
+        if member.status not in ["member", "administrator", "creator"]:
+            keyboard = [[InlineKeyboardButton("🔔 Join Channel", url=f"https://t.me/{FORCE_SUB_CHANNEL.replace('@','')}")]]
+            await update.message.reply_text(
+                "❌ You must join our channel first!",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return
+    except Exception as e:
+        logger.error(f"Force-sub error: {e}")
+        # fallback: allow if error
+        pass
+
+    # agar subscribed hai to normal flow
+    keyboard = paginate_countries(0)
+    await update.message.reply_text("🌍 Select a country:", reply_markup=InlineKeyboardMarkup(keyboard))
+
 
 
     # agar subscribed hai to normal flow
