@@ -256,7 +256,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
     except Exception as e:
-        logger.error(f"Force-sub error: {e}")
+        logger.error("Force-sub error: %s", e)
+
         # fallback: allow if error
         pass
 
