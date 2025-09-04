@@ -886,19 +886,41 @@ def start_all_saved_bots():
         start_cloned_bot(bot_id, config)
         time.sleep(2)
 
+from telegram.request import HTTPXRequest
+import telegram.error
+
 if __name__ == "__main__":
     logger.info("Starting multi-bot system...")
 
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)), debug=False), daemon=True).start()
+    # Flask ko alag thread pe run karo
+    threading.Thread(
+        target=lambda: app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)), debug=False),
+        daemon=True
+    ).start()
     time.sleep(2)
 
+    # Pehle se saved bots start karo
     start_all_saved_bots()
     time.sleep(2)
 
-    application = ApplicationBuilder().token(MAIN_BOT_TOKEN).build()
+    # Custom request object with bigger timeouts
+    request = HTTPXRequest(connect_timeout=20, read_timeout=20)
+
+    # Main bot application
+    application = ApplicationBuilder().token(MAIN_BOT_TOKEN).request(request).build()
     application.add_handler(CommandHandler("start", main_start))
     application.add_handler(CallbackQueryHandler(main_callback_handler))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, main_message_handler))
-    
+
     logger.info("Main bot starting...")
-    application.run_polling()
+
+    # Retry loop so bot never crashes on timeout
+    while True:
+        try:
+            application.run_polling()
+        except telegram.error.TimedOut:
+            logger.warning("⚠️ Telegram TimedOut, retrying in 5s...")
+            time.sleep(5)
+        except Exception as e:
+            logger.error(f"❌ Unexpected error: {e}, retrying in 10s...")
+            time.sleep(10)
