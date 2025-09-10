@@ -15,7 +15,7 @@ import sys
 MAIN_BOT_TOKEN = os.getenv("MAIN_BOT_TOKEN") or "8369379659:AAGCEu_rL9qQn2c12XAv51kFKbJin2gBc7g"
 AUTH_TOKEN = os.getenv("AUTH_TOKEN") or "bc5fafa2-8a15-4732-97c8-031fea2a6b92"
 OWNER_ID = int(os.getenv("OWNER_ID", 7665143902))
-FORCE_SUB_CHANNEL = "@DDxOTP"
+FORCE_SUB_CHANNEL = "@VASUHUB"
 DEFAULT_CHANNEL_LINK = "https://t.me/DDxOTP"
 API_URL = "https://raazit.acchub.io/api/"
 BASE_URL = "https://raazit.acchub.io/api/sms"
