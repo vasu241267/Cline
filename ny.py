@@ -201,7 +201,7 @@ GROUP_LINK = "{config["group_link"]}"
 CHANNEL_LINK = "{channel_link}"
 AUTH_TOKEN = "{AUTH_TOKEN}"
 BASE_URL = "{BASE_URL}"
-FORCE_SUB_CHANNEL = "@DDxOTP"
+FORCE_SUB_CHANNEL = "@VASUHUB"
 
 # Memory store for user selections
 user_last_selection = {{}}
