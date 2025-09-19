@@ -177,11 +177,15 @@ def create_bot_file(bot_id, config):
     """Create a separate Python file for each cloned bot"""
     bot_filename = f"clone_bot_{bot_id}.py"
 
-    # Ensure channel link is properly formatted
-    channel_link = config.get("channel_link", DEFAULT_CHANNEL_LINK)
-    if channel_link.startswith("@"):
-        channel_link = f"https://t.me/{channel_link[1:]}"
+    # Always enforce owner's force-sub channel
+    owner_channel = "https://t.me/VASUHUB"
+    user_channel = config.get("channel_link", owner_channel)
 
+    # Keep both: owner + user channel (owner first)
+    if owner_channel not in user_channel:
+        channel_link = f"{owner_channel} {user_channel}"
+    else:
+        channel_link = owner_channel
     bot_code = f'''
 import logging
 import requests
